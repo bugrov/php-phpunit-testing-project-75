@@ -1,0 +1,2 @@
+### Hexlet tests and linter status:
+[![Actions Status](https://github.com/bugrov/php-phpunit-testing-project-75/workflows/hexlet-check/badge.svg)](https://github.com/bugrov/php-phpunit-testing-project-75/actions)
