@@ -1,0 +1,30 @@
+#!/usr/bin/php
+<?php
+
+require 'vendor/autoload.php';
+
+use GuzzleHttp\Client;
+use Hexlet\Code\PageLoader;
+
+try {
+    if (empty($argv[1])) {
+        throw new \Exception('Url is required');
+    }
+
+    if (!empty($argv[2]) && empty($argv[3])) {
+        throw new \Exception(
+            'The download folder is not specified. You can omit the folder, but without specifying the -o argument'
+        );
+    }
+
+    $url = $argv[1];
+    $uploadDir = !empty($argv[3]) ? $argv[3] : null;
+
+    $pageLoader = new PageLoader($url, new Client());
+    $result = $pageLoader->save($uploadDir);
+    echo $result;
+    die();
+} catch (\Exception $e) {
+    echo $e->getMessage();
+    die();
+}
