@@ -1,9 +1,12 @@
 <?php
 
+use DiDom\Document;
+use Hexlet\Code\BadResponseException;
 use Hexlet\Code\BadUrlException;
 use Hexlet\Code\ClientNullException;
 use Hexlet\Code\FakeClient;
 use Hexlet\Code\FileStorage;
+use Hexlet\Code\FileStorageException;
 use Hexlet\Code\PageLoader;
 use org\bovigo\vfs\vfsStream;
 use PHPUnit\Framework\TestCase;
@@ -12,13 +15,15 @@ class PageLoaderTest extends TestCase
 {
     private mixed $client;
     private mixed $root;
-    private string $url = 'https://ru.hexlet.io/courses';
-    private string $expectedPath = 'ru-hexlet-io-courses.html';
+    private string $url = 'https://www.eberhart.ru/delivery';
+    private string $expectedPath = 'www-eberhart-ru-delivery.html';
+    private string $expectedFilesPath = 'www-eberhart-ru-delivery_files';
 
     public function setUp(): void
     {
         $this->client = $this->createMock(FakeClient::class);
         $this->root = vfsStream::setup('test', 0777);
+        $this->root->chown(vfsStream::OWNER_ROOT);
     }
 
     public function testPageLoaderThrowsExceptionWithEmptyClient()
@@ -35,7 +40,9 @@ class PageLoaderTest extends TestCase
 
     public function testSaveSuccess()
     {
+        $sourceFile = file_get_contents($this->getFixtureFullPath('www-eberhart-ru-delivery-before.html'));
         $expectedFile = file_get_contents($this->getFixtureFullPath($this->expectedPath));
+        $logFile = file_get_contents($this->getFixtureFullPath('page-loader.log'));
 
         $this->client->expects($this->once())
             ->method('get')
@@ -45,47 +52,65 @@ class PageLoaderTest extends TestCase
             ->willReturnSelf();
         $this->client->expects($this->once())
             ->method('getContents')
-            ->willReturn($expectedFile);
+            ->willReturn($sourceFile);
+        $this->client->expects($this->any())
+            ->method('request')
+            ->willReturnSelf();
 
         $this->assertFalse($this->root->hasChild("hexlet/$this->expectedPath"));
+        $this->assertFalse($this->root->hasChild("hexlet/$this->expectedFilesPath"));
+
+        // create log file
+        $this->root->addChild(vfsStream::newFile('hexlet/page-loader.log', 0755));
 
         $pageLoader = new PageLoader($this->url, $this->client);
         $result = $pageLoader->save($this->root->url() . '/hexlet');
 
         $this->assertEquals(0755, $this->root->getChild('hexlet')->getPermissions());
-        $this->assertTrue($this->root->hasChild("hexlet/$this->expectedPath"));
+        $this->assertEquals(0755, $this->root->getChild("hexlet/$this->expectedFilesPath")->getPermissions());
+
         $this->assertEquals($expectedFile, $this->root->getChild("hexlet/$this->expectedPath")->getContent());
-        $this->assertEquals(vfsStream::url("test/hexlet/{$this->expectedPath}"), $result);
+
+        $this->assertStringContainsString('Start', $this->root->getChild('hexlet/page-loader.log')->getContent());
+        $this->assertStringContainsString('Url and new filename', $this->root->getChild('hexlet/page-loader.log')->getContent());
+        $this->assertStringContainsString('Result from given url', $this->root->getChild('hexlet/page-loader.log')->getContent());
+        $this->assertStringContainsString('Data from html', $this->root->getChild('hexlet/page-loader.log')->getContent());
+        $this->assertStringContainsString('New file directory', $this->root->getChild('hexlet/page-loader.log')->getContent());
+        $this->assertStringContainsString('Finish', $this->root->getChild('hexlet/page-loader.log')->getContent());
+
+        $this->assertEquals(vfsStream::url("test/hexlet/$this->expectedPath"), $result);
     }
 
     public function testSaveWithNoReturnResultFromClient()
     {
-        $expected = '';
+        $this->expectException(BadResponseException::class);
 
         $this->client->expects($this->once())
             ->method('get')
+            ->with($this->url)
             ->willReturnSelf();
         $this->client->expects($this->once())
             ->method('getBody')
             ->willReturnSelf();
         $this->client->expects($this->once())
             ->method('getContents')
-            ->willReturn($expected);
+            ->willThrowException(new \Exception('Bad response'));
 
-        $this->assertFalse($this->root->hasChild("hexlet/$this->expectedPath"));
+        // create log file
+        $this->root->addChild(vfsStream::newFile('hexlet/page-loader.log', 0755));
 
         $pageLoader = new PageLoader($this->url, $this->client);
-        $result = $pageLoader->save($this->root->url() . '/hexlet');
+        $result = $pageLoader->save(vfsStream::url('test/hexlet'));
 
-        $this->assertFalse($this->root->hasChild("hexlet/$this->expectedPath"));
-        $this->assertEquals($expected, $result);
+        $this->assertStringContainsString('Get content from url error', $this->root->getChild('hexlet/page-loader.log')->getContent());
     }
 
     public function testSaveWithNoSaveFile()
     {
-        $expected = '';
         $expectedFile = file_get_contents($this->getFixtureFullPath($this->expectedPath));
         $fileStorage = $this->createMock(FileStorage::class);
+
+        $this->expectException(FileStorageException::class);
 
         $this->client->expects($this->once())
             ->method('get')
@@ -99,17 +124,47 @@ class PageLoaderTest extends TestCase
 
         $fileStorage->expects($this->once())
             ->method('save')
-            ->with(
-                'badDirectory',
-                $this->expectedPath,
-                $expectedFile
-            )
             ->willReturn(false);
 
-        $pageLoader = new PageLoader($this->url, $this->client);
-        $result = $pageLoader->save('badDirectory', $fileStorage);
+        // create log file
+        $this->root->addChild(vfsStream::newFile('hexlet/page-loader.log', 0755));
 
-        $this->assertEquals($expected, $result);
+        $pageLoader = new PageLoader($this->url, $this->client, $fileStorage);
+        $result = $pageLoader->save('badDirectory');
+
+        $this->assertStringContainsString('Cannot save new file', $this->root->getChild('hexlet/page-loader.log')->getContent());
+    }
+
+    public function testSaveWithNoSaveFileDirectory()
+    {
+        $expectedFile = file_get_contents($this->getFixtureFullPath($this->expectedPath));
+        $fileStorage = $this->createMock(FileStorage::class);
+        $domDocument = $this->createMock(Document::class);
+
+        $this->expectException(FileStorageException::class);
+
+        $this->client->expects($this->once())
+            ->method('get')
+            ->willReturnSelf();
+        $this->client->expects($this->once())
+            ->method('getBody')
+            ->willReturnSelf();
+        $this->client->expects($this->once())
+            ->method('getContents')
+            ->willReturn($expectedFile);
+
+        $fileStorage->expects($this->once())
+            ->method('save')
+            ->willReturn(true);
+        $fileStorage->expects($this->once())
+            ->method('saveDir')
+            ->willReturn(false);
+
+        // create log file
+        $this->root->addChild(vfsStream::newFile('hexlet/page-loader.log', 0755));
+
+        $pageLoader = new PageLoader($this->url, $this->client, $fileStorage, $domDocument);
+        $result = $pageLoader->save($this->root->url() . '/hexlet');
     }
 
     public function getFixtureFullPath($fixtureName)

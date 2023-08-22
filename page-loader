@@ -6,25 +6,40 @@ require 'vendor/autoload.php';
 use GuzzleHttp\Client;
 use Hexlet\Code\PageLoader;
 
-try {
-    if (empty($argv[1])) {
-        throw new \Exception('Url is required');
-    }
+if (empty($argv[1])) {
+    exit('Empty arguments');
+}
 
-    if (!empty($argv[2]) && empty($argv[3])) {
-        throw new \Exception(
-            'The download folder is not specified. You can omit the folder, but without specifying the -o argument'
-        );
-    }
+switch ($argv[1]) {
+    case '-h':
+    case '--help':
+        exit("
+Downloads page from URL and save it locally 
 
-    $url = $argv[1];
-    $uploadDir = !empty($argv[3]) ? $argv[3] : null;
-
-    $pageLoader = new PageLoader($url, new Client());
-    $result = $pageLoader->save($uploadDir);
-    echo $result;
-    die();
-} catch (\Exception $e) {
-    echo $e->getMessage();
-    die();
+Usage:                                                                                                   
+    page-loader (-h|--help)                                                                              
+    page-loader [(-o|--output) <dir>] <url>                                                                   
+    page-loader (-v|--version)                                                                           
+                                                                                                         
+Options:                                                                                                 
+  -h --help            display help for command                                                          
+  -v --version         output the version number                                                         
+  -o --output <dir>    output dir [default: current directory]
+  ");
+    case '-v':
+    case '--version':
+        exit('page-loader v1.0.0');
+    case '-o':
+    case '--output':
+        $url = !empty($argv[3]) ? $argv[3] : (!empty($argv[2]) ? $argv[2] : '');
+        $uploadDir = !empty($argv[3]) ? $argv[2] : null;
+        try {
+            $pageLoader = new PageLoader($url, new Client());
+            $result = $pageLoader->save($uploadDir);
+            exit($result);
+        } catch (\Exception $e) {
+            exit($e->getMessage());
+        }
+    default:
+        exit('Unknown arguments');
 }
