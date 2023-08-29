@@ -4,7 +4,7 @@
 require 'vendor/autoload.php';
 
 use GuzzleHttp\Client;
-use Hexlet\Code\PageLoader;
+use function Downloader\Downloader\downloadPage;
 
 if (empty($argv[1])) {
     exit('Empty arguments');
@@ -34,8 +34,7 @@ Options:
         $url = !empty($argv[3]) ? $argv[3] : (!empty($argv[2]) ? $argv[2] : '');
         $uploadDir = !empty($argv[3]) ? $argv[2] : null;
         try {
-            $pageLoader = new PageLoader($url, new Client());
-            $result = $pageLoader->save($uploadDir);
+            $result = downloadPage($url, $uploadDir, new Client());
             exit($result);
         } catch (\Exception $e) {
             exit($e->getMessage());

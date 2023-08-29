@@ -10,6 +10,7 @@ use Hexlet\Code\FileStorageException;
 use Hexlet\Code\PageLoader;
 use org\bovigo\vfs\vfsStream;
 use PHPUnit\Framework\TestCase;
+use function Downloader\Downloader\downloadPage;
 
 class PageLoaderTest extends TestCase
 {
@@ -29,20 +30,19 @@ class PageLoaderTest extends TestCase
     public function testPageLoaderThrowsExceptionWithEmptyClient()
     {
         $this->expectException(ClientNullException::class);
-        $pageLoader = new PageLoader($this->url);
+        downloadPage($this->url);
     }
 
     public function testPageLoaderBadUrlProvided()
     {
         $this->expectException(BadUrlException::class);
-        $pageLoader = new PageLoader('some url', $this->client);
+        downloadPage('some url', null, $this->client);
     }
 
     public function testSaveSuccess()
     {
         $sourceFile = file_get_contents($this->getFixtureFullPath('www-eberhart-ru-delivery-before.html'));
         $expectedFile = file_get_contents($this->getFixtureFullPath($this->expectedPath));
-        $logFile = file_get_contents($this->getFixtureFullPath('page-loader.log'));
 
         $this->client->expects($this->once())
             ->method('get')
@@ -63,8 +63,7 @@ class PageLoaderTest extends TestCase
         // create log file
         $this->root->addChild(vfsStream::newFile('hexlet/page-loader.log', 0755));
 
-        $pageLoader = new PageLoader($this->url, $this->client);
-        $result = $pageLoader->save($this->root->url() . '/hexlet');
+        $result = downloadPage($this->url, $this->root->url() . '/hexlet', $this->client);
 
         $this->assertEquals(0755, $this->root->getChild('hexlet')->getPermissions());
         $this->assertEquals(0755, $this->root->getChild("hexlet/$this->expectedFilesPath")->getPermissions());
@@ -99,8 +98,7 @@ class PageLoaderTest extends TestCase
         // create log file
         $this->root->addChild(vfsStream::newFile('hexlet/page-loader.log', 0755));
 
-        $pageLoader = new PageLoader($this->url, $this->client);
-        $result = $pageLoader->save(vfsStream::url('test/hexlet'));
+        $result = downloadPage($this->url, vfsStream::url('test/hexlet'), $this->client);
 
         $this->assertStringContainsString('Get content from url error', $this->root->getChild('hexlet/page-loader.log')->getContent());
     }
@@ -129,8 +127,7 @@ class PageLoaderTest extends TestCase
         // create log file
         $this->root->addChild(vfsStream::newFile('hexlet/page-loader.log', 0755));
 
-        $pageLoader = new PageLoader($this->url, $this->client, $fileStorage);
-        $result = $pageLoader->save('badDirectory');
+        $result = downloadPage($this->url, 'badDirectory', $this->client, $fileStorage);
 
         $this->assertStringContainsString('Cannot save new file', $this->root->getChild('hexlet/page-loader.log')->getContent());
     }
@@ -163,8 +160,7 @@ class PageLoaderTest extends TestCase
         // create log file
         $this->root->addChild(vfsStream::newFile('hexlet/page-loader.log', 0755));
 
-        $pageLoader = new PageLoader($this->url, $this->client, $fileStorage, $domDocument);
-        $result = $pageLoader->save($this->root->url() . '/hexlet');
+        $result = downloadPage($this->url, $this->root->url() . '/hexlet', $this->client, $fileStorage, $domDocument);
     }
 
     public function getFixtureFullPath($fixtureName)
