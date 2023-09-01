@@ -101,7 +101,7 @@ class PageLoaderTest extends TestCase
         $result = downloadPage($this->url, vfsStream::url('test/hexlet'), $this->client);
 
         $this->assertStringContainsString('Get content from url error', $this->root->getChild('hexlet/page-loader.log')->getContent());
-        $this->assertEmpty($result);
+        $this->assertEquals($this->expectedPath, $result);
     }
 
     public function testSaveWithNoSaveFile()
