@@ -74,7 +74,7 @@ class PageLoader implements PageLoaderInterface
         ]);
 
         if (!$result) {
-            throw new BadResponseException('Something went wrong. Please try again later.');
+            return '';
         }
 
         $this->domDocument->loadHtml($result);

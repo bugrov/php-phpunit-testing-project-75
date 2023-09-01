@@ -82,7 +82,7 @@ class PageLoaderTest extends TestCase
 
     public function testSaveWithNoReturnResultFromClient()
     {
-        $this->expectException(BadResponseException::class);
+//        $this->expectException(BadResponseException::class);
 
         $this->client->expects($this->once())
             ->method('get')
@@ -101,6 +101,7 @@ class PageLoaderTest extends TestCase
         $result = downloadPage($this->url, vfsStream::url('test/hexlet'), $this->client);
 
         $this->assertStringContainsString('Get content from url error', $this->root->getChild('hexlet/page-loader.log')->getContent());
+        $this->assertEmpty($result);
     }
 
     public function testSaveWithNoSaveFile()
